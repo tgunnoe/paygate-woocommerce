@@ -1,0 +1,12 @@
+/.idea
+/vendor
+/db
+!web/
+web/*
+!web/wp-content/
+web/wp-content/*
+!web/wp-content/plugins/
+web/wp-content/plugins/*
+!web/wp-content/plugins/paygate-for-woocommerce/
+.env
+tests/.env
