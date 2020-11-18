@@ -35,6 +35,7 @@
     "preserve-paths": [
       "web/wp-config.php",
       "web/wp-content/uploads"
+      "web/wp-content/plugins/paygate-for-woocommerce"
     ],
     "wordpress-install-dir": "web"
   }
