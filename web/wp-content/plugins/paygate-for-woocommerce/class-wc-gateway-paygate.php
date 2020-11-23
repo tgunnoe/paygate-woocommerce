@@ -17,7 +17,7 @@ if (false === defined('ABSPATH')) {
 
 define("PAYGATE_VERSION", "1.0.0");
 
-// Ensures WooCommerce is loaded before initializing the BitPay plugin
+// Ensures WooCommerce is loaded before initializing the PayGate plugin
 // REQUIRED
 add_action('plugins_loaded', 'woocommerce_paygate_init', 0);
 
@@ -243,246 +243,6 @@ function woocommerce_paygate_init()
 
       $this->log('    [Info] Initialized form fields: ' . var_export($this->form_fields, true));
       $this->log('    [Info] Leaving init_form_fields()...');
-    }
-
-    /**
-     * HTML output for form field type `order_states`
-     */
-    /*public function generate_order_states_html()
-    {
-      $this->log('    [Info] Entered generate_order_states_html()...');
-
-      ob_start();
-
-      $bp_statuses = array(
-        'new'=>'New Order',
-        'paid'=>'Paid',
-        'confirmed'=>'Confirmed',
-        'complete'=>'Complete',
-        'invalid'=>'Invalid',
-        'expired'=>'Expired',
-        'event_invoice_paidAfterExpiration'=>'Paid after expiration',
-        'event_invoice_expiredPaidPartial' => 'Expired with partial payment'
-      );
-
-      $df_statuses = array(
-        'new'=>'wc-pending',
-        'paid'=>'wc-on-hold',
-        'confirmed'=>'wc-processing',
-        'complete'=>'wc-processing',
-        'invalid'=>'wc-failed',
-        'expired'=>'wc-cancelled',
-        'event_invoice_paidAfterExpiration' => 'wc-failed',
-        'event_invoice_expiredPaidPartial' => 'wc-failed'
-      );
-
-      $wc_statuses = wc_get_order_statuses();
-      $wc_statuses = array('BTCPAY_IGNORE' => '') + $wc_statuses;
-
-      ?>
-
-      <tr valign="top">
-          <th scope="row" class="titledesc">Order States:</th>
-          <td class="forminp" id="btcpay_order_states">
-              <table cellspacing="0">
-                  <?php
-
-                      foreach ($bp_statuses as $bp_state => $bp_name) {
-                      ?>
-                      <tr>
-                      <th><?php echo $bp_name; ?></th>
-                      <td>
-                          <select name="woocommerce_btcpay_order_states[<?php echo $bp_state; ?>]">
-                          <?php
-
-                          $order_states = get_option('woocommerce_btcpay_settings');
-                          $order_states = $order_states['order_states'];
-                          foreach ($wc_statuses as $wc_state => $wc_name) {
-                              $current_option = $order_states[$bp_state];
-
-                              if (true === empty($current_option)) {
-                                  $current_option = $df_statuses[$bp_state];
-                              }
-
-                              if ($current_option === $wc_state) {
-                                  echo "<option value=\"$wc_state\" selected>$wc_name</option>\n";
-                              } else {
-                                  echo "<option value=\"$wc_state\">$wc_name</option>\n";
-                              }
-                          }
-
-                          ?>
-                          </select>
-                      </td>
-                      </tr>
-                      <?php
-                  }
-
-                  ?>
-              </table>
-          </td>
-      </tr>
-
-      <?php
-
-      $this->log('    [Info] Leaving generate_order_states_html()...');
-      return ob_get_clean();
-    }*/
-
-    /**
-     * Output for the order received page.
-     * Simply clears out the cart
-     */
-    public function thankyou_page($order_id)
-    {
-      $this->log('    [Info] Entered thankyou_page with order_id =  ' . $order_id);
-
-      // Remove cart
-      WC()->cart->empty_cart();
-
-      // Intentionally blank.
-      $this->log('    [Info] Leaving thankyou_page with order_id =  ' . $order_id);
-    }
-
-    /**
-     * Process the payment and return the result
-     * REQUIRED CLASS
-     *
-     * This must return an array with a "result" and a "redirect" param
-     *
-     * @param   int     $order_id
-     * @return  array
-     */
-    public function process_payment($order_id)
-    {
-      $this->log('    [Info] Entered process_payment() with order_id = ' . $order_id . '...');
-
-      if (true === empty($order_id))
-      {
-        $this->log('    [Error] The Paygate payment plugin was called to process a payment but the order_id was missing.');
-        throw new \Exception('The Paygate payment plugin was called to process a payment but the order_id was missing. Cannot continue!');
-      }
-
-      //Get order details
-      $order = wc_get_order( $order_id );
-
-      if (false === $order)
-      {
-        $this->log('    [Error] The Paygate payment plugin was called to process a payment but could not retrieve the order details for order_id ' . $order_id);
-        throw new \Exception('The Paygate payment plugin was called to process a payment but could not retrieve the order details for order_id ' . $order_id . '. Cannot continue!');
-      }
-
-      $url = $this->paygate_endpoint;
-      if(substr($url, -1) != '/') {
-        $url .= '/';
-      }
-
-      $transaction_id = $order->get_order_number();
-
-      //Get notification url (URL that IPNs will be sent to)
-      //$webhook_url = $this->get_option('notification_url', WC()->api_request_url('WC_Gateway_Paygate'));
-      $webhook_url = WC()->api_request_url('WC_Gateway_Paygate');
-      $this->log('    [Info] Generating payment form for order ' . $order->get_order_number() . '. Notify URL: ' . $webhook_url);
-
-      // Mark new order according to user settings (we're awaiting the payment)
-      /*$new_order_states = $this->get_option('order_states');
-      $new_order_status = $new_order_states['new'];*/
-      $new_order_status = 'pending';
-      $this->log('    [Info] Changing order status to: '.$new_order_status);
-      $order->update_status($new_order_status);
-      $this->log('    [Info] Changed order status result');
-
-      //get_return_url - the url woocommerce thinks we should redirect to after payment
-      $thanks_link = $this->get_return_url($order);
-      $this->log('    [Info] The variable thanks_link = ' . $thanks_link . '...');
-
-      // Redirect URL & Notification URL
-      //Our own custom redirect url
-      //$redirect_url = $this->get_option('redirect_url', $thanks_link);
-      $redirect_url = $thanks_link;
-
-      //If our custom redirect URL does not equal the thanks link, append an "order-received=<orderid>" param
-      /*if($redirect_url !== $thanks_link)
-      {
-        $order_received_len = strlen('order-received');
-        if(substr($redirect_url, -$order_received_len) === 'order-received')
-        {
-          $this->log('substr($redirect_url, -$order_received_pos) === order-received');
-          $redirect_url = $redirect_url . '=' . $order->get_id();
-        }
-        else
-        {
-          $redirect_url = add_query_arg( 'order-received', $order->get_id(), $redirect_url);
-        }
-        $redirect_url = add_query_arg( 'key', $order->get_order_key(), $redirect_url);
-      }*/
-
-      $this->log('    [Info] The variable redirect_url = ' . $redirect_url  . '...');
-      $this->log('    [Info] Notification URL is now set to: ' . $webhook_url . '...');
-
-      $order_total = $order->calculate_totals();
-      $frequency = 'SINGLE';
-      $transactionType = $this->paygate_gateway_mode;
-      $username = $this->paygate_client_id;
-
-      error_log($order->get_customer_ip_address());
-
-      $additionalInfo = array();
-      $additionalInfo['billing_first_name'] = trim($order->get_billing_first_name());
-      $additionalInfo['billing_last_name'] = trim($order->get_billing_last_name());
-      $additionalInfo['billing_email'] = trim($order->get_billing_email());
-      $additionalInfo['billing_street_1'] = trim($order->get_billing_address_1());
-      $additionalInfo['billing_street_2'] = trim($order->get_billing_address_2());
-      $additionalInfo['billing_city'] = trim($order->get_billing_city());
-      $additionalInfo['billing_state'] = trim($order->get_billing_state());
-      $additionalInfo['billing_postal_code'] = trim($order->get_billing_postcode());
-      $additionalInfo['billing_country'] = trim($order->get_billing_country());
-      $additionalInfo['ip_address'] = trim($order->get_customer_ip_address());
-      $additionalInfoEncrypted = $this->encryptOpenSSL(json_encode($additionalInfo), $this->paygate_client_secret);
-
-      $paygateUrl = $url . '/?transactionId=' . $transaction_id . '&webhookUrl=' . $webhook_url . '&redirectUrl=' . $redirect_url . '&amount=' . $order_total . '&frequency=' . $frequency . '&customerId=' . $username . '&transactionType=' . $transactionType . '&additionalInfo=' . $additionalInfoEncrypted;
-      $unencoded_hash = hash_hmac('sha256', $paygateUrl, $this->paygate_client_secret, true);
-      $request_url_hash = urlencode(base64_encode($unencoded_hash));
-      $paygateUrl .= '&requestHash=' . $request_url_hash;
-
-      //Assign variables to the woocommerce order
-      update_post_meta($order_id, 'paygate_amount', $order_total);
-      update_post_meta($order_id, 'paygate_gateway_mode', $transactionType);
-
-      //Update some more items on the woocommerce order
-      //$this->update_btcpay($order_id, $responseData);
-
-      // Reduce stock levels
-      if (function_exists('wc_reduce_stock_levels'))
-      {
-        wc_reduce_stock_levels($order_id);
-      }
-      else
-      {
-        $order->reduce_order_stock();
-      }
-
-      $this->log('    [Info] Leaving process_payment()...');
-
-      // Redirect the customer to the BitPay invoice
-      return array(
-        'result'   => 'success',
-        'redirect' => '/checkout/?paygate_checkout_url=' . urlencode($paygateUrl)
-      );
-    }
-
-    private function encryptOpenSSL($plain_text, $passphrase)
-    {
-			$salt = openssl_random_pseudo_bytes(256);
-			$iv = openssl_random_pseudo_bytes(16);
-			$iterations = 999;
-
-			$key = hash_pbkdf2("sha512", $passphrase, $salt, $iterations, 64);
-
-			$encrypted_data = openssl_encrypt($plain_text, 'aes-256-cbc', hex2bin($key), OPENSSL_RAW_DATA, $iv);
-
-			$data = array("ciphertext" => base64_encode($encrypted_data), "iv" => bin2hex($iv), "salt" => bin2hex($salt));
-			return base64_encode(json_encode($data));
     }
 
     //Set up to be the callback for this gateway plugin
@@ -843,21 +603,70 @@ function woocommerce_paygate_init()
   }
 
   /**
-  * Add BitPay Payment Gateway to WooCommerce
-  * REQUIRED ITEM
-  **/
-  function wc_add_paygate($methods)
-  {
-    $methods[] = 'WC_Gateway_Paygate';
-    return $methods;
-  }
-
-  add_filter('woocommerce_payment_gateways', 'wc_add_paygate');
-
-  /**
    * Add Settings and Logs link to the plugin entry in the plugins menu
    **/
   add_filter('plugin_action_links', 'paygate_plugin_action_links', 10, 2);
+
+  function paygate_get_checkout_url()
+  {
+
+  }
+
+  remove_action( 'woocommerce_proceed_to_checkout', 'woocommerce_button_proceed_to_checkout', 20 );
+  add_action('woocommerce_proceed_to_checkout', 'sm_woo_custom_checkout_button_text',20);
+
+  function sm_woo_custom_checkout_button_text()
+  {
+      $cashier_url = "http://cashier.docker.localhost:8001/wp-json/cocart/v1/add-item?oauth_consumer_key=ck_9bdeecd91450e90169cea899f2c2573647b7e451&oauth_signature_method=HMAC-SHA1&oauth_timestamp=1605810830&oauth_nonce=xhxKvyv29S6&oauth_version=1.0&oauth_signature=UIR8OJE1U6HQ1i/s3YC4bdOMvM8=";
+
+
+      // $response = wp_remote_post( $cashier_url,
+      //                             array(
+      //                                 'method'      => 'POST',
+      //                                 'headers'     => array(
+      //                                     'Content-Type' => 'application/json'
+      //                                 ),
+      //                                 'body'        => array(
+      //                                     'product_id' => 'GG-DEP',
+      //                                     'quantity' => '1'
+      //                                 )
+      //                             )
+      // );
+
+      if ( is_wp_error( $response ) ) {
+          //echo $response->get_error_message();
+
+          //print('BOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO');
+
+
+      } else {
+          //$cart_id = $response['body']['key'];
+
+          //remove_action('woocommerce_proceed_to_checkout', 'sm_woo_custom_checkout_button_text',20);
+
+      }
+      $checkout_url = 'http://cashier.docker.localhost:8001/checkout?cocart-load-cart=';
+          ?>
+          <a href="<?php $checkout_url  ?>" class="checkout-button button alt wc-forward"><?php  _e( 'Checkout at Ghostguns.com', 'woocommerce' ); ?></a>
+          <?php
+  }
+ //  function wc_get_checkout_url()
+ //  {
+
+ //      $checkout_base_url = 'http://cashier.docker.localhost:8001';
+
+ //      $checkout_url = $checkout_base_url + '';
+
+ //      if ( $checkout_url ) {
+ //          // Force SSL if needed.
+ //          if ( is_ssl() || 'yes' === get_option( 'woocommerce_force_ssl_checkout' ) ) {
+ //              $checkout_url = str_replace( 'http:', 'https:', $checkout_url );
+
+ //          }
+ //      }
+
+ //      return apply_filters( 'woocommerce_get_checkout_url', $checkout_url );
+ // }
 
   function paygate_plugin_action_links($links, $file)
   {
@@ -918,156 +727,6 @@ function woocommerce_paygate_init()
   add_action("woocommerce_thankyou_paygate", 'action_woocommerce_thankyou_paygate', 10, 1);
 }
 
-//Called if we fail requirements in activate
-/*function woocommerce_btcpay_failed_requirements()
-{
-  global $wp_version;
-  global $woocommerce;
-
-  $errors = array();
-  if (extension_loaded('openssl')  === false)
-  {
-    $errors[] = 'The BTCPay payment plugin requires the OpenSSL extension for PHP in order to function. Please contact your web server administrator for assistance.';
-  }
-  // PHP 5.4+ required
-  if (true === version_compare(PHP_VERSION, '5.4.0', '<'))
-  {
-    $errors[] = 'Your PHP version is too old. The BTCPay payment plugin requires PHP 5.4 or higher to function. Please contact your web server administrator for assistance.';
-  }
-
-  // Wordpress 3.9+ required
-  if (true === version_compare($wp_version, '3.9', '<'))
-  {
-    $errors[] = 'Your WordPress version is too old. The BTCPay payment plugin requires Wordpress 3.9 or higher to function. Please contact your web server administrator for assistance.';
-  }
-
-  // WooCommerce required
-  if (true === empty($woocommerce))
-  {
-    $errors[] = 'The WooCommerce plugin for WordPress needs to be installed and activated. Please contact your web server administrator for assistance.';
-  }
-  elseif (true === version_compare($woocommerce->version, '2.2', '<'))
-  {
-    $errors[] = 'Your WooCommerce version is too old. The BTCPay payment plugin requires WooCommerce 2.2 or higher to function. Your version is '.$woocommerce->version.'. Please contact your web server administrator for assistance.';
-  }
-
-  // GMP or BCMath required
-  if (false === extension_loaded('gmp') && false === extension_loaded('bcmath'))
-  {
-    $errors[] = 'The BTCPay payment plugin requires the GMP or BC Math extension for PHP in order to function. Please contact your web server administrator for assistance.';
-  }
-
-  // Curl required
-  if (false === extension_loaded('curl'))
-  {
-    $errors[] = 'The BTCPay payment plugin requires the Curl extension for PHP in order to function. Please contact your web server administrator for assistance.';
-  }
-
-  if (false === empty($errors))
-  {
-    return implode("<br>\n", $errors);
-  }
-  else
-  {
-    return false;
-  }
-}*/
-
-// Activating the plugin
-/*function woocommerce_btcpay_activate()
-{
-  // Check for Requirements
-  $failed = woocommerce_btcpay_failed_requirements();
-
-  $plugins_url = admin_url('plugins.php');
-
-  // Requirements met, activate the plugin
-  if ($failed === false)
-  {
-    // Deactivate any older versions that might still be present
-    $plugins = get_plugins();
-
-    foreach ($plugins as $file => $plugin)
-    {
-      //Alert that Bitpay needs to be deleted
-      if ('Bitpay Woocommerce' === $plugin['Name'] && true === is_plugin_active($file))
-      {
-        deactivate_plugins(plugin_basename(__FILE__));
-        wp_die('BtcPay for WooCommerce requires that the old plugin, <b>Bitpay Woocommerce</b>, is deactivated and deleted.<br><a href="'.$plugins_url.'">Return to plugins screen</a>');
-      }
-
-      //Alert that an older version of btcpay for woocommerce must be deactivated
-      if ('BTCPay for WooCommerce' === $plugin['Name'] && true === is_plugin_active($file) && (0 > version_compare( $plugin['Version'], '3.0' )))
-      {
-        deactivate_plugins(plugin_basename(__FILE__));
-        wp_die('BtcPay for WooCommerce requires that the 2.x version of this plugin is deactivated. <br><a href="'.$plugins_url.'">Return to plugins screen</a>');
-      }
-
-      //Migrating from a version > 2.0. Try to pull btcpay settings first, if not, bitpay settings
-      if('BTCPay for WooCommerce' === $plugin['Name'] && (0 > version_compare( $plugin['Version'], '3.0.1' )))
-      {
-        update_option('woocommerce_btcpay_key',
-          get_option( 'woocommerce_btcpay_key', get_option('woocommerce_bitpay_key', null) )
-        );
-
-        update_option('woocommerce_btcpay_pub',
-          get_option( 'woocommerce_btcpay_pub', get_option('woocommerce_bitpay_pub', null) )
-        );
-
-        update_option('woocommerce_btcpay_sin',
-          get_option( 'woocommerce_btcpay_sin', get_option('woocommerce_bitpay_sin', null) )
-        );
-
-        update_option('woocommerce_btcpay_token',
-          get_option( 'woocommerce_btcpay_token', get_option('woocommerce_bitpay_token', null) )
-        );
-
-        update_option('woocommerce_btcpay_label',
-          get_option( 'woocommerce_btcpay_label', get_option('woocommerce_bitpay_label', null) )
-        );
-
-        update_option('woocommerce_btcpay_network',
-          get_option( 'woocommerce_btcpay_network', get_option('woocommerce_bitpay_network', null) )
-        );
-
-        update_option('woocommerce_btcpay_settings',
-          get_option( 'woocommerce_btcpay_settings', get_option('woocommerce_bitpay_settings', null) )
-        );
-
-        update_option('woocommerce_btcpay_url',
-          get_option( 'woocommerce_btcpay_url', get_option('woocommerce_bitpay_url', null) )
-        );
-
-        update_option('woocommerce_btcpay_notification_url',
-          get_option( 'woocommerce_btcpay_notification_url', get_option('woocommerce_bitpay_notification_url', null) )
-        );
-
-        update_option('woocommerce_btcpay_redirect_url',
-          get_option( 'woocommerce_btcpay_redirect_url', get_option('woocommerce_bitpay_redirect_url', null) )
-        );
-
-        update_option('woocommerce_btcpay_transaction_speed',
-          get_option( 'woocommerce_btcpay_transaction_speed', get_option('woocommerce_bitpay_transaction_speed', null) )
-        );
-
-        update_option('woocommerce_btcpay_order_states',
-          get_option( 'woocommerce_btcpay_order_states', get_option('woocommerce_bitpay_order_states', null) )
-        );
-
-
-        set_transient( 'fx_admin_notice_show_migration_message', true, 5 );
-      }
-    }
-
-    update_option('woocommerce_btcpay_version', constant("BTCPAY_VERSION"));
-
-  }
-  else
-  {
-    // Requirements not met, return an error message
-    wp_die($failed . '<br><a href="'.$plugins_url.'">Return to plugins screen</a>');
-  }
-}*/
 
 function paygate_admin_notice_show_success_message()
 {
