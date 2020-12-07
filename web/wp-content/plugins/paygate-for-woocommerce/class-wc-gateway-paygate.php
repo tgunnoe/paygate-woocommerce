@@ -97,7 +97,7 @@ function woocommerce_paygate_init()
       if (false === $this->is_valid_for_use())
       {
         $this->enabled = 'no';
-        $this->log('    [Info] The plugin is NOT valid for use!');
+          $this->log('    [Info] The plugin is NOT valid for use!');
       }
       else
       {
@@ -150,7 +150,7 @@ function woocommerce_paygate_init()
         true === is_null($this->paygate_client_secret)
       )
       {
-          return false;
+          return true;
       }
 
       $this->log('    [Info] Plugin is valid for use.');
@@ -559,16 +559,17 @@ function woocommerce_paygate_init()
           return vars;
         }
 
-        $(document).ready(function() {
-          if(!$('body').hasClass('woocommerce-checkout')) {
-            return;
-          }
+       $('a.checkout-button').click(function(e) {
+           console.log('boo');
+       });
+       $(document).ready(function() {
+           console.log('fuck this');
 
           var paygateCheckoutUrl = decodeURIComponent(getUrlVars()['paygate_checkout_url']);
           if(!paygateCheckoutUrl || paygateCheckoutUrl.indexOf("<?php echo($this->paygate_endpoint); ?>") != 0) {
             return;
           }
-
+            console.log(paygateCheckoutUrl);
           if(paygateCheckoutUrl) {
             $('div#popup-modal-paygate-checkout iframe').attr('src', paygateCheckoutUrl);
             MicroModal.show('popup-modal-paygate-checkout');
@@ -613,41 +614,119 @@ function woocommerce_paygate_init()
   }
 
   remove_action( 'woocommerce_proceed_to_checkout', 'woocommerce_button_proceed_to_checkout', 20 );
-  add_action('woocommerce_proceed_to_checkout', 'sm_woo_custom_checkout_button_text',20);
+  add_action('woocommerce_proceed_to_checkout', 'sm_woo_custom_checkout_button_text',10, 2);
+#      add_filter( 'woocommerce_get_checkout_url', 'my_change_checkout_url', 30 );
+      #add_action('woocommerce_before_');
+      #add_action( 'wp_footer', 'paygate_modal_footer');
+      add_action('init', function() {
+          add_rewrite_endpoint('foregin-checkout', EP_PAGES);
+      });
+        add_action( 'wp_footer', 'paygate_modal_footer', 10, 2);
+  function my_change_checkout_url( $url )
+  {
 
+      $url = 'http://wp.docker.localhost:8000/checkout/?redirect=ghostguns';
+
+      return $url;
+
+  }
+  function cocart_request() {
+
+        try {
+          $capture_url = "http://cashier.docker.localhost:8001/wp-json/cocart/v1/add-item?oauth_consumer_key=ck_9bdeecd91450e90169cea899f2c2573647b7e451&oauth_signature_method=HMAC-SHA1&oauth_timestamp=1605810830&oauth_nonce=xhxKvyv29S6&oauth_version=1.0&oauth_signature=UIR8OJE1U6HQ1i/s3YC4bdOMvM8=";
+
+            $data = array(
+                'product_id' => 'GG-DEP',
+                'quantity' => '1'
+            );
+          $curl = curl_init();
+          curl_setopt_array($curl, [
+            CURLOPT_RETURNTRANSFER => 1,
+            CURLOPT_URL => $capture_url,
+            CURLOPT_POST => 1,
+            CURLOPT_POSTFIELDS => $data
+          ]);
+
+          $resp = curl_exec($curl);
+          curl_close($curl);
+
+          $resp = json_decode($resp);
+
+            if($resp->error) {
+                print('error');
+                #set_transient( 'paygate_admin_notice_show_error_message', $resp->error, 5 );
+                #$order->add_order_note(__('Failed to capture authorized payment via Gunspring. Error was: ' . $resp->error, 'gunspring'));
+                return;
+            }
+            else{
+                print('not error2');
+                echo (string) $resp;
+            }
+
+            if(!$resp->success) {
+                echo (string) $resp;
+                print('but not success');
+                set_transient( 'paygate_admin_notice_show_error_message', 'Capture response was something unexpected', 5 );
+            return;
+          }
+
+ #         $order->update_status('processing');
+ #         $order->add_order_note(__('Successfully captured authorized payment via Gunspring.', 'gunspring'));
+ #         set_transient( 'gunspring_admin_notice_show_success_message', 'Successfully captured authorized payment via Gunspring', 5 );
+        }
+        catch(Exception $e) {
+            set_transient( 'paygate_admin_notice_show_error_message', $e->getMessage(), 5 );
+            print('whaaat');
+          return;
+        }
+
+  }
   function sm_woo_custom_checkout_button_text()
   {
       $cashier_url = "http://cashier.docker.localhost:8001/wp-json/cocart/v1/add-item?oauth_consumer_key=ck_9bdeecd91450e90169cea899f2c2573647b7e451&oauth_signature_method=HMAC-SHA1&oauth_timestamp=1605810830&oauth_nonce=xhxKvyv29S6&oauth_version=1.0&oauth_signature=UIR8OJE1U6HQ1i/s3YC4bdOMvM8=";
+      /*
+       *
+       *       /* $response = wp_remote_post( $cashier_url,
+       *        *                             array(
+       *        *                                 'method'      => 'POST',
+       *        *                                 'headers'     => array(
+       *        *                                     'Content-Type' => 'application/json'
+       *        *                                 ),
+       *        *                                 'body'        => array(
+       *        *                                     'product_id' => 'GG-DEP',
+       *        *                                     'quantity' => '1'
+       *        *                                 )
+       *        *                             )
+       *        * );
+       *        */
+      /*       if ( is_wp_error( $response ) ) {
+          *           //echo $response->get_error_message();
+          *
+          *           print('error');
+          *
+          *
+          *       } else {
+              *           print($cashier_url);
+              *           //$cart_id = $response['body']['key'];
+              *
+              *           //remove_action('woocommerce_proceed_to_checkout', 'sm_woo_custom_checkout_button_text',20);
+              *
+       *       }*/
 
-
-      // $response = wp_remote_post( $cashier_url,
-      //                             array(
-      //                                 'method'      => 'POST',
-      //                                 'headers'     => array(
-      //                                     'Content-Type' => 'application/json'
-      //                                 ),
-      //                                 'body'        => array(
-      //                                     'product_id' => 'GG-DEP',
-      //                                     'quantity' => '1'
-      //                                 )
-      //                             )
-      // );
-
-      if ( is_wp_error( $response ) ) {
-          //echo $response->get_error_message();
-
-          //print('BOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO');
-
-
-      } else {
-          //$cart_id = $response['body']['key'];
-
-          //remove_action('woocommerce_proceed_to_checkout', 'sm_woo_custom_checkout_button_text',20);
-
-      }
-      $checkout_url = 'http://cashier.docker.localhost:8001/checkout?cocart-load-cart=';
+      $checkout2_url = 'http://cashier.docker.localhost:8001/checkout/';
           ?>
-          <a href="<?php $checkout_url  ?>" class="checkout-button button alt wc-forward"><?php  _e( 'Checkout at Ghostguns.com', 'woocommerce' ); ?></a>
+          <a href="javascript:;" class="checkout-button button alt wc-forward" onclick="shit()"><?php  _e( 'Checkout at Ghostguns.com', 'woocommerce' ); ?></a>
+          <script>
+           $(document).ready(function() {
+               console.log("done");
+               console.log($(body));
+           });
+           function shit(){
+
+               console.log($(body));
+           }
+           shit();
+          </script>
           <?php
   }
  //  function wc_get_checkout_url()
